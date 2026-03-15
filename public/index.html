@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ficha de Viagem</title>
+
+  <style>
+    body{
+      font-family:Segoe UI, Arial, sans-serif;
+      background:#eef2f7;
+      display:flex;
+      justify-content:center;
+      padding:30px;
+      margin:0;
+    }
+
+    .card{
+      background:white;
+      padding:30px;
+      border-radius:12px;
+      width:900px;
+      max-width:100%;
+      box-shadow:0 10px 35px rgba(0,0,0,0.1);
+    }
+
+    h1{
+      margin-bottom:10px;
+    }
+
+    h2{
+      margin-top:30px;
+      border-bottom:1px solid #eee;
+      padding-bottom:6px;
+    }
+
+    .box{
+      background:#f8fafc;
+      padding:15px;
+      border-radius:8px;
+      margin-bottom:20px;
+    }
+
+    input,select{
+      width:100%;
+      padding:10px;
+      margin:6px 0 14px;
+      border:1px solid #ccc;
+      border-radius:6px;
+      box-sizing:border-box;
+    }
+
+    button{
+      background:#2563eb;
+      color:white;
+      padding:15px;
+      border:none;
+      border-radius:8px;
+      width:100%;
+      font-size:16px;
+      cursor:pointer;
+    }
+
+    button:disabled{
+      background:#94a3b8;
+    }
+
+    .hidden{
+      display:none;
+    }
+
+    #msg{
+      display:none;
+      background:#dcfce7;
+      border:1px solid #86efac;
+      padding:12px;
+      border-radius:8px;
+      margin-bottom:15px;
+      color:#166534;
+      font-weight:600;
+    }
+
+    .label{
+      display:block;
+      font-weight:600;
+      margin-top:6px;
+      color:#334155;
+    }
+
+    .grid-2{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+    }
+
+    @media (max-width:700px){
+      .grid-2{
+        grid-template-columns:1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h1>Ficha Oficial da Viagem</h1>
+
+    <div id="msg"></div>
+
+    <form id="form" enctype="multipart/form-data">
+      <h2>Viajante</h2>
+
+      <div id="viajante"></div>
+
+      <label class="label">Estado civil</label>
+      <select id="estadoCivil" name="estadoCivil" required>
+        <option value="">Selecione</option>
+        <option>Solteiro</option>
+        <option>Casado</option>
+      </select>
+
+      <div id="conjugeArea"></div>
+
+      <label class="label">Número de filhos</label>
+      <input type="number" id="qtdFilhos" name="qtdFilhos" min="0" required>
+
+      <div id="filhosArea"></div>
+
+      <br>
+      <button id="btn" type="submit">FINALIZAR CADASTRO</button>
+    </form>
+  </div>
+
+  <script>
+    const form = document.getElementById("form");
+    const btn = document.getElementById("btn");
+    const msg = document.getElementById("msg");
+    const estadoCivil = document.getElementById("estadoCivil");
+    const qtdFilhos = document.getElementById("qtdFilhos");
+    const viajante = document.getElementById("viajante");
+    const conjugeArea = document.getElementById("conjugeArea");
+    const filhosArea = document.getElementById("filhosArea");
+
+    function maskCPF(input){
+      let v = input.value.replace(/\D/g,"").slice(0,11);
+      v = v.replace(/(\d{3})(\d)/,"$1.$2");
+      v = v.replace(/(\d{3})(\d)/,"$1.$2");
+      v = v.replace(/(\d{3})(\d{1,2})$/,"$1-$2");
+      input.value = v;
+    }
+
+    function maskRG(input){
+      let v = input.value.replace(/\D/g,"").slice(0,9);
+      v = v.replace(/(\d{2})(\d)/,"$1.$2");
+      v = v.replace(/(\d{3})(\d)/,"$1.$2");
+      v = v.replace(/(\d{3})(\d)$/,"$1-$2");
+      input.value = v;
+    }
+
+    function toggleCampo(selectEl, targetId){
+      const box = document.getElementById(targetId);
+      if (!box) return;
+
+      const input = box.querySelector("input");
+      if (!input) return;
+
+      if(selectEl.value === "Sim"){
+        box.classList.remove("hidden");
+        input.required = true;
+      } else {
+        box.classList.add("hidden");
+        input.required = false;
+        input.value = "";
+      }
+    }
+
+    function pessoa(prefix, titulo){
+      return `
+        <div class="box">
+          <h3>${titulo}</h3>
+
+          <label class="label">Nome completo</label>
+          <input name="${prefix}_nome" required>
+
+          <label class="label">Data de nascimento</label>
+          <input type="date" name="${prefix}_nascimento" required>
+
+          <div class="grid-2">
+            <div>
+              <label class="label">RG</label>
+              <input name="${prefix}_rg" data-mask="rg" required>
+            </div>
+
+            <div>
+              <label class="label">CPF</label>
+              <input name="${prefix}_cpf" data-mask="cpf" required>
+            </div>
+          </div>
+
+          <label class="label">Igreja</label>
+          <input name="${prefix}_igreja" required>
+
+          <label class="label">Possui alergia?</label>
+          <select name="${prefix}_alergia_tem" data-target="${prefix}_alergia_box" required>
+            <option value="">Selecione</option>
+            <option>Não</option>
+            <option>Sim</option>
+          </select>
+
+          <div id="${prefix}_alergia_box" class="hidden">
+            <label class="label">Qual alergia?</label>
+            <input name="${prefix}_alergia_qual">
+          </div>
+
+          <label class="label">Possui doença crônica?</label>
+          <select name="${prefix}_doenca_tem" data-target="${prefix}_doenca_box" required>
+            <option value="">Selecione</option>
+            <option>Não</option>
+            <option>Sim</option>
+          </select>
+
+          <div id="${prefix}_doenca_box" class="hidden">
+            <label class="label">Qual doença?</label>
+            <input name="${prefix}_doenca_qual">
+          </div>
+
+          <label class="label">Faz uso de medicamento?</label>
+          <select name="${prefix}_medicamento_tem" data-target="${prefix}_medicamento_box" required>
+            <option value="">Selecione</option>
+            <option>Não</option>
+            <option>Sim</option>
+          </select>
+
+          <div id="${prefix}_medicamento_box" class="hidden">
+            <label class="label">Qual medicamento?</label>
+            <input name="${prefix}_medicamento_qual">
+          </div>
+
+          <h4>Uploads obrigatórios</h4>
+
+          <label class="label">RG</label>
+          <input type="file" name="${prefix}_rgFile" accept="image/*,.pdf" capture="environment" required>
+
+          <label class="label">CPF</label>
+          <input type="file" name="${prefix}_cpfFile" accept="image/*,.pdf" capture="environment" required>
+
+          <label class="label">Carteira de vacinação</label>
+          <input type="file" name="${prefix}_vacina" accept="image/*,.pdf" capture="environment" required>
+        </div>
+      `;
+    }
+
+    function aplicarEventosDinamicos(container = document){
+      container.querySelectorAll('input[data-mask="cpf"]').forEach((input) => {
+        input.addEventListener("input", () => maskCPF(input));
+      });
+
+      container.querySelectorAll('input[data-mask="rg"]').forEach((input) => {
+        input.addEventListener("input", () => maskRG(input));
+      });
+
+      container.querySelectorAll("select[data-target]").forEach((select) => {
+        select.addEventListener("change", () => {
+          toggleCampo(select, select.dataset.target);
+        });
+      });
+    }
+
+    function renderViajante(){
+      viajante.innerHTML = pessoa("viajante", "Pessoa que vai viajar");
+      aplicarEventosDinamicos(viajante);
+    }
+
+    function toggleConjuge(){
+      if(estadoCivil.value === "Casado"){
+        conjugeArea.innerHTML = pessoa("conjuge", "Dados do Cônjuge");
+        aplicarEventosDinamicos(conjugeArea);
+      } else {
+        conjugeArea.innerHTML = "";
+      }
+    }
+
+    function gerarFilhos(){
+      filhosArea.innerHTML = "";
+      const n = parseInt(qtdFilhos.value || 0, 10);
+
+      for(let i = 1; i <= n; i++){
+        const wrapper = document.createElement("div");
+        wrapper.innerHTML = pessoa("filho" + i, "Dados do Filho " + i);
+        filhosArea.appendChild(wrapper.firstElementChild);
+      }
+
+      aplicarEventosDinamicos(filhosArea);
+    }
+
+    function showMsg(text){
+      msg.innerText = text;
+      msg.style.display = "block";
+
+      setTimeout(() => {
+        msg.style.display = "none";
+      }, 4000);
+    }
+
+    function limparDinamicos(){
+      conjugeArea.innerHTML = "";
+      filhosArea.innerHTML = "";
+      estadoCivil.value = "";
+      qtdFilhos.value = "";
+    }
+
+    function validarFormulario(){
+      const obrigatorios = form.querySelectorAll("[required]");
+
+      for(const campo of obrigatorios){
+        if(campo.type === "file"){
+          if(!campo.files || campo.files.length === 0){
+            alert("Envie todos os documentos obrigatórios.");
+            campo.focus();
+            return false;
+          }
+        } else {
+          if(!campo.value){
+            alert("Preencha todos os campos obrigatórios.");
+            campo.focus();
+            return false;
+          }
+        }
+      }
+
+      return true;
+    }
+
+    function enviar(e){
+      e.preventDefault();
+
+      if(!validarFormulario()) return;
+
+      btn.innerText = "Enviando...";
+      btn.disabled = true;
+
+      const xhr = new XMLHttpRequest();
+
+      xhr.onload = function(){
+        btn.innerText = "FINALIZAR CADASTRO";
+        btn.disabled = false;
+
+        let resp;
+        try{
+          resp = JSON.parse(xhr.responseText);
+        }catch{
+          resp = { ok:false, message:"Resposta inválida do servidor." };
+        }
+
+        if(resp.ok){
+          showMsg("Cadastro feito com sucesso!");
+          form.reset();
+          limparDinamicos();
+          renderViajante();
+        } else {
+          alert(resp.message || "Erro no envio");
+        }
+      };
+
+      xhr.onerror = function(){
+        btn.innerText = "FINALIZAR CADASTRO";
+        btn.disabled = false;
+        alert("Erro de conexão com o servidor.");
+      };
+
+      xhr.open("POST", "/enviar");
+      xhr.send(new FormData(form));
+    }
+
+    estadoCivil.addEventListener("change", toggleConjuge);
+    qtdFilhos.addEventListener("change", gerarFilhos);
+    form.addEventListener("submit", enviar);
+
+    renderViajante();
+  </script>
+
+</body>
+</html>
