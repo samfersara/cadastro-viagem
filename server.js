@@ -20,6 +20,7 @@ const ADMIN_USER = process.env.ADMIN_USER || "admin"
 const ADMIN_PASS = process.env.ADMIN_PASS || "admin"
 const SESSION_SECRET = process.env.SESSION_SECRET || "viagem-secret"
 const TOTAL_PASSAGEIROS = Number(process.env.TOTAL_PASSAGEIROS || 45)
+const DB = process.env.DB_PATH || "passageiros.json"
 
 app.use(
   session({
@@ -29,8 +30,6 @@ app.use(
     cookie: { httpOnly: true, sameSite: "lax" }
   })
 )
-
-const DB = "passageiros.json"
 
 if (!fs.existsSync(DB)) fs.writeFileSync(DB, "[]")
 
@@ -56,141 +55,6 @@ function safeFileName(v) {
 
 function safeText(v) {
   return String(v || "").trim()
-}
-
-function labelize(key) {
-  return key
-    .replace(/^viajante_/, "")
-    .replace(/^conjuge_/, "")
-    .replace(/^filho\d+_/, "")
-    .replace(/_/g, " ")
-    .replace(/\bcpf\b/gi, "CPF")
-    .replace(/\brg\b/gi, "RG")
-    .replace(/\bnascimento\b/gi, "Nascimento")
-    .replace(/\bdoenca\b/gi, "Doença")
-    .replace(/\bmedicamento\b/gi, "Medicamento")
-    .replace(/\balergia\b/gi, "Alergia")
-    .replace(/\btem\b/gi, "")
-    .replace(/\bqual\b/gi, "")
-    .replace(/\s+/g, " ")
-    .trim()
-}
-
-function groupEntries(body) {
-  const entries = Object.entries(body).sort(([a], [b]) => a.localeCompare(b))
-  const g = { viajante: [], conjuge: [], filhos: new Map(), outros: [] }
-
-  for (const [k, v] of entries) {
-    if (k.startsWith("viajante_")) g.viajante.push([k, v])
-    else if (k.startsWith("conjuge_")) g.conjuge.push([k, v])
-    else if (/^filho\d+_/.test(k)) {
-      const m = k.match(/^filho(\d+)_/)
-      const idx = m ? Number(m[1]) : 0
-      if (!g.filhos.has(idx)) g.filhos.set(idx, [])
-      g.filhos.get(idx).push([k, v])
-    } else {
-      g.outros.push([k, v])
-    }
-  }
-
-  const ordered = new Map([...g.filhos.entries()].sort((a, b) => a[0] - b[0]))
-  for (const [idx, arr] of ordered.entries()) {
-    arr.sort(([a], [b]) => a.localeCompare(b))
-    ordered.set(idx, arr)
-  }
-  g.filhos = ordered
-
-  return g
-}
-
-function pdfSection(doc, title) {
-  if (doc.y > doc.page.height - doc.page.margins.bottom - 80) doc.addPage()
-
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(12)
-    .fillColor("#0f172a")
-    .text(title)
-
-  doc.moveDown(0.3)
-
-  const y = doc.y
-  doc
-    .moveTo(doc.page.margins.left, y)
-    .lineTo(doc.page.width - doc.page.margins.right, y)
-    .strokeColor("#cbd5e1")
-    .stroke()
-
-  doc.moveDown(0.8)
-}
-
-function pdfKV(doc, items) {
-  const left = doc.page.margins.left
-  const right = doc.page.width - doc.page.margins.right
-  const width = right - left
-
-  const labelW = 170
-  const valueW = width - labelW - 10
-
-  for (const [k, v] of items) {
-    if (k.endsWith("_rgFile") || k.endsWith("_cpfFile") || k.endsWith("_vacina")) continue
-
-    if (doc.y > doc.page.height - doc.page.margins.bottom - 40) doc.addPage()
-
-    const y = doc.y
-
-    doc.font("Helvetica-Bold").fontSize(10).fillColor("#334155")
-    doc.text(labelize(k) + ":", left, y, { width: labelW })
-
-    doc.font("Helvetica").fontSize(11).fillColor("#0f172a")
-    doc.text(String(v ?? "") || "-", left + labelW + 10, y, { width: valueW })
-
-    doc.moveDown(0.9)
-  }
-
-  doc.moveDown(0.4)
-}
-
-function gerarPdfBuffer(reqBody) {
-  return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ margin: 42, size: "A4" })
-    const chunks = []
-
-    doc.on("data", (chunk) => chunks.push(chunk))
-    doc.on("end", () => resolve(Buffer.concat(chunks)))
-    doc.on("error", reject)
-
-    doc.font("Helvetica-Bold").fontSize(18).fillColor("#0f172a").text("FICHA DE VIAGEM", { align: "center" })
-    doc.moveDown(0.2)
-    doc.font("Helvetica").fontSize(9.5).fillColor("#475569").text(`Gerada em: ${new Date().toLocaleString("pt-BR")}`, { align: "center" })
-    doc.moveDown(1.2)
-
-    const g = groupEntries(reqBody)
-
-    pdfSection(doc, "Viajante")
-    pdfKV(doc, g.viajante)
-
-    if (reqBody.estadoCivil === "Casado" && g.conjuge.length) {
-      pdfSection(doc, "Cônjuge")
-      pdfKV(doc, g.conjuge)
-    }
-
-    if (g.filhos.size) {
-      for (const [idx, arr] of g.filhos.entries()) {
-        pdfSection(doc, `Filho ${idx}`)
-        pdfKV(doc, arr)
-      }
-    }
-
-    if (doc.y > doc.page.height - doc.page.margins.bottom - 60) doc.addPage()
-    doc
-      .font("Helvetica")
-      .fontSize(9)
-      .fillColor("#64748b")
-      .text("Documento gerado automaticamente pelo sistema de cadastro da viagem.", { align: "center" })
-
-    doc.end()
-  })
 }
 
 function resumoTexto(body) {
@@ -248,6 +112,52 @@ function contarPassageirosTotais(lista) {
   return lista.reduce((acc, item) => acc + contarPassageirosRegistro(item), 0)
 }
 
+function gerarPdfBuffer(reqBody) {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 42, size: "A4" })
+    const chunks = []
+
+    doc.on("data", (chunk) => chunks.push(chunk))
+    doc.on("end", () => resolve(Buffer.concat(chunks)))
+    doc.on("error", reject)
+
+    doc.font("Helvetica-Bold").fontSize(18).fillColor("#0f172a").text("FICHA DE VIAGEM", { align: "center" })
+    doc.moveDown(0.5)
+    doc.font("Helvetica").fontSize(10).fillColor("#475569").text(`Gerada em: ${new Date().toLocaleString("pt-BR")}`, { align: "center" })
+    doc.moveDown(1.5)
+
+    doc.font("Helvetica-Bold").fontSize(13).fillColor("#0f172a").text("Viajante")
+    doc.moveDown(0.4)
+    doc.font("Helvetica").fontSize(11).fillColor("#111827").text(`Nome: ${reqBody.viajante_nome || "-"}`)
+    doc.moveDown(1)
+
+    if (reqBody.conjuge_nome) {
+      doc.font("Helvetica-Bold").fontSize(13).fillColor("#0f172a").text("Cônjuge")
+      doc.moveDown(0.4)
+      doc.font("Helvetica").fontSize(11).fillColor("#111827").text(`Nome: ${reqBody.conjuge_nome}`)
+      doc.moveDown(1)
+    }
+
+    const filhos = extrairFilhos(reqBody)
+
+    if (filhos.length) {
+      doc.font("Helvetica-Bold").fontSize(13).fillColor("#0f172a").text("Filhos")
+      doc.moveDown(0.4)
+
+      filhos.forEach((nome, i) => {
+        doc.font("Helvetica").fontSize(11).fillColor("#111827").text(`Filho ${i + 1}: ${nome}`)
+      })
+
+      doc.moveDown(1)
+    }
+
+    doc.font("Helvetica").fontSize(9).fillColor("#64748b")
+      .text("Documento gerado automaticamente pelo sistema de cadastro da viagem.", { align: "center" })
+
+    doc.end()
+  })
+}
+
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: Number(process.env.SMTP_PORT || 587),
@@ -261,10 +171,6 @@ const transporter = nodemailer.createTransport({
 app.post("/enviar", upload.any(), async (req, res) => {
   try {
     const dados = loadDB()
-
-    if (dados.find((d) => d.viajante_cpf === req.body.viajante_cpf)) {
-      return res.status(409).json({ ok: false, message: "CPF já cadastrado." })
-    }
 
     const pdfBuffer = await gerarPdfBuffer(req.body)
 
@@ -400,17 +306,6 @@ h1{
   color:var(--muted);
   font-size:12px;
   margin-top:6px;
-}
-
-.pill{
-  border:1px solid var(--line);
-  background:rgba(255,255,255,.04);
-  padding:8px 10px;
-  border-radius:999px;
-  color:var(--muted);
-  font-weight:600;
-  font-size:12px;
-  display:inline-block;
 }
 
 .bar{
@@ -651,35 +546,29 @@ app.get("/admin", requireAdmin, (req, res) => {
     .reverse()
     .map((d) => {
       const nome = d.viajante_nome || "-"
-      const cpf = d.viajante_cpf || "-"
-      const nasc = d.viajante_nascimento || "-"
-      const igreja = d.viajante_igreja || "-"
-
       const nomeConjuge = d.conjuge_nome || ""
       const filhos = extrairFilhos(d)
       const qtdFilhos = filhos.length
 
       const conjugeHtml = nomeConjuge
         ? `<div class="muted"><strong>Cônjuge:</strong> ${nomeConjuge}</div>`
-        : ""
+        : `<div class="muted"><strong>Cônjuge:</strong> Não</div>`
 
       const filhosHtml = filhos.length
         ? `<div class="muted"><strong>Filhos (${qtdFilhos}):</strong> ${filhos.join(", ")}</div>`
         : `<div class="muted"><strong>Filhos:</strong> 0</div>`
 
       return `
-        <tr data-nome="${String(nome).toLowerCase()}" data-cpf="${String(cpf).toLowerCase()}">
+        <tr data-nome="${String(nome).toLowerCase()}">
           <td>
             <div class="name">${nome}</div>
-            <div class="muted">${igreja}</div>
             ${conjugeHtml}
             ${filhosHtml}
           </td>
-          <td>${cpf}</td>
-          <td>${nasc}</td>
+          <td>${contarPassageirosRegistro(d)}</td>
           <td>
             <form method="POST" action="/admin/delete" onsubmit="return confirm('Excluir cadastro de ${safeFileName(nome)}?')">
-              <input type="hidden" name="cpf" value="${cpf}">
+              <input type="hidden" name="viajante_nome" value="${nome}">
               <button class="btn btn-danger">Excluir</button>
             </form>
           </td>
@@ -698,9 +587,7 @@ app.get("/admin", requireAdmin, (req, res) => {
 
           document.querySelectorAll("tbody tr").forEach(tr=>{
             const nome = tr.dataset.nome || ""
-            const cpf = tr.dataset.cpf || ""
-
-            tr.style.display = (nome.includes(q) || cpf.includes(q)) ? "" : "none"
+            tr.style.display = nome.includes(q) ? "" : "none"
           })
         }
 
@@ -734,11 +621,11 @@ app.get("/admin", requireAdmin, (req, res) => {
         <div class="grid">
           <div class="card">
             <div class="stat">${totalPassageiros} / ${TOTAL_PASSAGEIROS}</div>
-            <div class="statLbl">Passageiros contabilizados (viajantes + cônjuges + filhos)</div>
+            <div class="statLbl">Passageiros contabilizados</div>
             <div class="bar">
               <div class="fill" id="fill" data-pct="${pct}"></div>
             </div>
-            <div class="muted" style="margin-top:10px;">${pct}% da meta total de passageiros</div>
+            <div class="muted" style="margin-top:10px;">${pct}% da meta total</div>
           </div>
 
           <div class="card">
@@ -749,20 +636,19 @@ app.get("/admin", requireAdmin, (req, res) => {
         </div>
 
         <div class="card">
-          <input id="q" class="search" placeholder="Buscar por nome ou CPF" oninput="filtrar()">
+          <input id="q" class="search" placeholder="Buscar por nome do viajante" oninput="filtrar()">
         </div>
 
         <table>
           <thead>
             <tr>
-              <th>Passageiro principal</th>
-              <th>CPF</th>
-              <th>Nascimento</th>
+              <th>Ficha</th>
+              <th>Total de passageiros</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            ${rows || `<tr><td colspan="4">Nenhum cadastro</td></tr>`}
+            ${rows || `<tr><td colspan="3">Nenhum cadastro</td></tr>`}
           </tbody>
         </table>
 
@@ -774,7 +660,7 @@ app.get("/admin", requireAdmin, (req, res) => {
 
 app.post("/admin/delete", requireAdmin, (req, res) => {
   let dados = loadDB()
-  dados = dados.filter((d) => d.viajante_cpf !== req.body.cpf)
+  dados = dados.filter((d) => d.viajante_nome !== req.body.viajante_nome)
   saveDB(dados)
   res.redirect("/admin")
 })
@@ -786,26 +672,22 @@ app.get("/excel", requireAdmin, async (req, res) => {
   const ws = wb.addWorksheet("Passageiros")
 
   ws.columns = [
-    { header: "Nome", key: "nome", width: 30 },
-    { header: "CPF", key: "cpf", width: 20 },
-    { header: "Nascimento", key: "n", width: 15 },
-    { header: "Igreja", key: "i", width: 30 },
+    { header: "Viajante", key: "v", width: 30 },
     { header: "Cônjuge", key: "c", width: 30 },
-    { header: "Qtd. Filhos", key: "f", width: 12 },
-    { header: "Nomes dos Filhos", key: "nf", width: 40 }
+    { header: "Qtd. Filhos", key: "qf", width: 12 },
+    { header: "Filhos", key: "f", width: 40 },
+    { header: "Total de Passageiros", key: "tp", width: 18 }
   ]
 
   dados.forEach((d) => {
     const filhos = extrairFilhos(d)
 
     ws.addRow({
-      nome: d.viajante_nome,
-      cpf: d.viajante_cpf,
-      n: d.viajante_nascimento,
-      i: d.viajante_igreja,
+      v: d.viajante_nome || "",
       c: d.conjuge_nome || "",
-      f: filhos.length,
-      nf: filhos.join(", ")
+      qf: filhos.length,
+      f: filhos.join(", "),
+      tp: contarPassageirosRegistro(d)
     })
   })
 
@@ -816,6 +698,6 @@ app.get("/excel", requireAdmin, async (req, res) => {
 
 const PORT = process.env.PORT || 3000
 
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log("🚍 SISTEMA VIAGEM ONLINE rodando na porta", PORT)
 })

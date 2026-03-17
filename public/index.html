@@ -87,15 +87,9 @@
       color:#334155;
     }
 
-    .grid-2{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:12px;
-    }
-
     @media (max-width:700px){
-      .grid-2{
-        grid-template-columns:1fr;
+      .card{
+        padding:20px;
       }
     }
   </style>
@@ -110,23 +104,29 @@
     <form id="form" enctype="multipart/form-data">
       <h2>Viajante</h2>
 
-      <div id="viajante"></div>
+      <div class="box">
+        <label class="label">Nome do viajante</label>
+        <input name="viajante_nome" required>
+      </div>
 
-      <label class="label">Estado civil</label>
-      <select id="estadoCivil" name="estadoCivil" required>
+      <label class="label">Possui cônjuge?</label>
+      <select id="temConjuge" name="temConjuge" required>
         <option value="">Selecione</option>
-        <option>Solteiro</option>
-        <option>Casado</option>
+        <option>Não</option>
+        <option>Sim</option>
       </select>
 
       <div id="conjugeArea"></div>
 
-      <label class="label">Número de filhos</label>
+      <label class="label">Quantidade de filhos</label>
       <input type="number" id="qtdFilhos" name="qtdFilhos" min="0" required>
 
       <div id="filhosArea"></div>
 
-      <br>
+      <h2>Uploads obrigatórios</h2>
+
+      <div id="uploadsArea"></div>
+
       <button id="btn" type="submit">FINALIZAR CADASTRO</button>
     </form>
   </div>
@@ -135,108 +135,34 @@
     const form = document.getElementById("form");
     const btn = document.getElementById("btn");
     const msg = document.getElementById("msg");
-    const estadoCivil = document.getElementById("estadoCivil");
+    const temConjuge = document.getElementById("temConjuge");
     const qtdFilhos = document.getElementById("qtdFilhos");
-    const viajante = document.getElementById("viajante");
     const conjugeArea = document.getElementById("conjugeArea");
     const filhosArea = document.getElementById("filhosArea");
+    const uploadsArea = document.getElementById("uploadsArea");
 
-    function maskCPF(input){
-      let v = input.value.replace(/\D/g,"").slice(0,11);
-      v = v.replace(/(\d{3})(\d)/,"$1.$2");
-      v = v.replace(/(\d{3})(\d)/,"$1.$2");
-      v = v.replace(/(\d{3})(\d{1,2})$/,"$1-$2");
-      input.value = v;
+    function blocoConjuge(){
+      return `
+        <div class="box">
+          <label class="label">Nome do cônjuge</label>
+          <input name="conjuge_nome" required>
+        </div>
+      `;
     }
 
-    function maskRG(input){
-      let v = input.value.replace(/\D/g,"").slice(0,9);
-      v = v.replace(/(\d{2})(\d)/,"$1.$2");
-      v = v.replace(/(\d{3})(\d)/,"$1.$2");
-      v = v.replace(/(\d{3})(\d)$/,"$1-$2");
-      input.value = v;
+    function blocoFilho(i){
+      return `
+        <div class="box">
+          <label class="label">Nome do filho ${i}</label>
+          <input name="filho${i}_nome" required>
+        </div>
+      `;
     }
 
-    function toggleCampo(selectEl, targetId){
-      const box = document.getElementById(targetId);
-      if (!box) return;
-
-      const input = box.querySelector("input");
-      if (!input) return;
-
-      if(selectEl.value === "Sim"){
-        box.classList.remove("hidden");
-        input.required = true;
-      } else {
-        box.classList.add("hidden");
-        input.required = false;
-        input.value = "";
-      }
-    }
-
-    function pessoa(prefix, titulo){
+    function blocoUploads(prefix, titulo){
       return `
         <div class="box">
           <h3>${titulo}</h3>
-
-          <label class="label">Nome completo</label>
-          <input name="${prefix}_nome" required>
-
-          <label class="label">Data de nascimento</label>
-          <input type="date" name="${prefix}_nascimento" required>
-
-          <div class="grid-2">
-            <div>
-              <label class="label">RG</label>
-              <input name="${prefix}_rg" data-mask="rg" required>
-            </div>
-
-            <div>
-              <label class="label">CPF</label>
-              <input name="${prefix}_cpf" data-mask="cpf" required>
-            </div>
-          </div>
-
-          <label class="label">Igreja</label>
-          <input name="${prefix}_igreja" required>
-
-          <label class="label">Possui alergia?</label>
-          <select name="${prefix}_alergia_tem" data-target="${prefix}_alergia_box" required>
-            <option value="">Selecione</option>
-            <option>Não</option>
-            <option>Sim</option>
-          </select>
-
-          <div id="${prefix}_alergia_box" class="hidden">
-            <label class="label">Qual alergia?</label>
-            <input name="${prefix}_alergia_qual">
-          </div>
-
-          <label class="label">Possui doença crônica?</label>
-          <select name="${prefix}_doenca_tem" data-target="${prefix}_doenca_box" required>
-            <option value="">Selecione</option>
-            <option>Não</option>
-            <option>Sim</option>
-          </select>
-
-          <div id="${prefix}_doenca_box" class="hidden">
-            <label class="label">Qual doença?</label>
-            <input name="${prefix}_doenca_qual">
-          </div>
-
-          <label class="label">Faz uso de medicamento?</label>
-          <select name="${prefix}_medicamento_tem" data-target="${prefix}_medicamento_box" required>
-            <option value="">Selecione</option>
-            <option>Não</option>
-            <option>Sim</option>
-          </select>
-
-          <div id="${prefix}_medicamento_box" class="hidden">
-            <label class="label">Qual medicamento?</label>
-            <input name="${prefix}_medicamento_qual">
-          </div>
-
-          <h4>Uploads obrigatórios</h4>
 
           <label class="label">RG</label>
           <input type="file" name="${prefix}_rgFile" accept="image/*,.pdf" capture="environment" required>
@@ -250,34 +176,28 @@
       `;
     }
 
-    function aplicarEventosDinamicos(container = document){
-      container.querySelectorAll('input[data-mask="cpf"]').forEach((input) => {
-        input.addEventListener("input", () => maskCPF(input));
-      });
+    function renderUploads(){
+      let html = blocoUploads("viajante", "Uploads do viajante");
 
-      container.querySelectorAll('input[data-mask="rg"]').forEach((input) => {
-        input.addEventListener("input", () => maskRG(input));
-      });
+      if (temConjuge.value === "Sim") {
+        html += blocoUploads("conjuge", "Uploads do cônjuge");
+      }
 
-      container.querySelectorAll("select[data-target]").forEach((select) => {
-        select.addEventListener("change", () => {
-          toggleCampo(select, select.dataset.target);
-        });
-      });
-    }
+      const n = parseInt(qtdFilhos.value || 0, 10);
+      for(let i = 1; i <= n; i++){
+        html += blocoUploads(`filho${i}`, `Uploads do filho ${i}`);
+      }
 
-    function renderViajante(){
-      viajante.innerHTML = pessoa("viajante", "Pessoa que vai viajar");
-      aplicarEventosDinamicos(viajante);
+      uploadsArea.innerHTML = html;
     }
 
     function toggleConjuge(){
-      if(estadoCivil.value === "Casado"){
-        conjugeArea.innerHTML = pessoa("conjuge", "Dados do Cônjuge");
-        aplicarEventosDinamicos(conjugeArea);
+      if(temConjuge.value === "Sim"){
+        conjugeArea.innerHTML = blocoConjuge();
       } else {
         conjugeArea.innerHTML = "";
       }
+      renderUploads();
     }
 
     function gerarFilhos(){
@@ -285,12 +205,10 @@
       const n = parseInt(qtdFilhos.value || 0, 10);
 
       for(let i = 1; i <= n; i++){
-        const wrapper = document.createElement("div");
-        wrapper.innerHTML = pessoa("filho" + i, "Dados do Filho " + i);
-        filhosArea.appendChild(wrapper.firstElementChild);
+        filhosArea.innerHTML += blocoFilho(i);
       }
 
-      aplicarEventosDinamicos(filhosArea);
+      renderUploads();
     }
 
     function showMsg(text){
@@ -302,11 +220,11 @@
       }, 4000);
     }
 
-    function limparDinamicos(){
+    function resetFormCustom(){
+      form.reset();
       conjugeArea.innerHTML = "";
       filhosArea.innerHTML = "";
-      estadoCivil.value = "";
-      qtdFilhos.value = "";
+      uploadsArea.innerHTML = blocoUploads("viajante", "Uploads do viajante");
     }
 
     function validarFormulario(){
@@ -354,9 +272,7 @@
 
         if(resp.ok){
           showMsg("Cadastro feito com sucesso!");
-          form.reset();
-          limparDinamicos();
-          renderViajante();
+          resetFormCustom();
         } else {
           alert(resp.message || "Erro no envio");
         }
@@ -372,11 +288,11 @@
       xhr.send(new FormData(form));
     }
 
-    estadoCivil.addEventListener("change", toggleConjuge);
+    temConjuge.addEventListener("change", toggleConjuge);
     qtdFilhos.addEventListener("change", gerarFilhos);
     form.addEventListener("submit", enviar);
 
-    renderViajante();
+    renderUploads();
   </script>
 
 </body>
