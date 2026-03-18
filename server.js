@@ -57,11 +57,41 @@ function safeText(v) {
   return String(v || "").trim()
 }
 
+function extrairFilhos(d) {
+  const filhos = []
+
+  Object.keys(d).forEach((k) => {
+    if (/^filho\d+_nome$/.test(k) && d[k]) {
+      filhos.push(d[k])
+    }
+  })
+
+  return filhos
+}
+
+function contarPassageirosRegistro(d) {
+  let total = 1
+  if (d.conjuge_nome && String(d.conjuge_nome).trim()) total += 1
+  total += Number(d.qtdFilhos || 0)
+  return total
+}
+
+function contarPassageirosTotais(lista) {
+  return lista.reduce((acc, item) => acc + contarPassageirosRegistro(item), 0)
+}
+
 function resumoTexto(body) {
   const linhas = []
-  for (const [k, v] of Object.entries(body)) {
-    linhas.push(`${k}: ${v}`)
+
+  linhas.push(`Viajante: ${body.viajante_nome || "-"}`)
+  linhas.push(`Cônjuge: ${body.conjuge_nome || "Não possui"}`)
+  linhas.push(`Quantidade de filhos: ${body.qtdFilhos || 0}`)
+
+  const filhos = extrairFilhos(body)
+  if (filhos.length) {
+    linhas.push(`Filhos: ${filhos.join(", ")}`)
   }
+
   return linhas.join("\n")
 }
 
@@ -79,40 +109,17 @@ function extensaoDoArquivo(filename, mimetype) {
   return mapa[mimetype] || ""
 }
 
-function nomeAnexoSeguro(file) {
-  const base = safeFileName(file.fieldname)
-  const ext = extensaoDoArquivo(file.originalname, file.mimetype)
-  return `${base}${ext}`
+function nomeArquivoAmigavel(file) {
+  let nome = file.fieldname
+
+  nome = nome.replace("rgCpfFile", "Documento_RG_CPF")
+  nome = nome.replace("vacina", "Carteira_Vacinacao")
+  nome = nome.replace("termoAutorizacao", "Termo_Autorizacao")
+
+  return safeFileName(nome) + extensaoDoArquivo(file.originalname, file.mimetype)
 }
 
-function extrairFilhos(d) {
-  const filhos = []
-
-  Object.keys(d).forEach((k) => {
-    if (/^filho\d+_nome$/.test(k) && d[k]) {
-      filhos.push(d[k])
-    }
-  })
-
-  return filhos
-}
-
-function contarPassageirosRegistro(d) {
-  let total = 1
-
-  if (d.conjuge_nome && String(d.conjuge_nome).trim()) total += 1
-
-  const qtdFilhos = Number(d.qtdFilhos || 0)
-  total += qtdFilhos
-
-  return total
-}
-
-function contarPassageirosTotais(lista) {
-  return lista.reduce((acc, item) => acc + contarPassageirosRegistro(item), 0)
-}
-
-function gerarPdfBuffer(reqBody) {
+function gerarPdfBuffer(d) {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 42, size: "A4" })
     const chunks = []
@@ -122,34 +129,38 @@ function gerarPdfBuffer(reqBody) {
     doc.on("error", reject)
 
     doc.font("Helvetica-Bold").fontSize(18).fillColor("#0f172a").text("FICHA DE VIAGEM", { align: "center" })
-    doc.moveDown(0.5)
+    doc.moveDown(0.2)
     doc.font("Helvetica").fontSize(10).fillColor("#475569").text(`Gerada em: ${new Date().toLocaleString("pt-BR")}`, { align: "center" })
-    doc.moveDown(1.5)
+    doc.moveDown(1.2)
 
     doc.font("Helvetica-Bold").fontSize(13).fillColor("#0f172a").text("Viajante")
     doc.moveDown(0.4)
-    doc.font("Helvetica").fontSize(11).fillColor("#111827").text(`Nome: ${reqBody.viajante_nome || "-"}`)
+    doc.font("Helvetica").fontSize(11).fillColor("#111827").text(`Nome: ${d.viajante_nome || "-"}`)
     doc.moveDown(1)
 
-    if (reqBody.conjuge_nome) {
+    if (d.conjuge_nome) {
       doc.font("Helvetica-Bold").fontSize(13).fillColor("#0f172a").text("Cônjuge")
       doc.moveDown(0.4)
-      doc.font("Helvetica").fontSize(11).fillColor("#111827").text(`Nome: ${reqBody.conjuge_nome}`)
+      doc.font("Helvetica").fontSize(11).fillColor("#111827").text(`Nome: ${d.conjuge_nome}`)
       doc.moveDown(1)
     }
 
-    const filhos = extrairFilhos(reqBody)
-
+    const filhos = extrairFilhos(d)
     if (filhos.length) {
       doc.font("Helvetica-Bold").fontSize(13).fillColor("#0f172a").text("Filhos")
       doc.moveDown(0.4)
 
-      filhos.forEach((nome, i) => {
-        doc.font("Helvetica").fontSize(11).fillColor("#111827").text(`Filho ${i + 1}: ${nome}`)
+      filhos.forEach((f, i) => {
+        doc.font("Helvetica").fontSize(11).fillColor("#111827").text(`Filho ${i + 1}: ${f}`)
       })
 
       doc.moveDown(1)
     }
+
+    doc.font("Helvetica-Bold").fontSize(12).fillColor("#0f172a").text("Documentação")
+    doc.moveDown(0.4)
+    doc.font("Helvetica").fontSize(10).fillColor("#334155").text("Os documentos enviados seguem em anexo no e-mail, incluindo o termo de autorização.")
+    doc.moveDown(1.2)
 
     doc.font("Helvetica").fontSize(9).fillColor("#64748b")
       .text("Documento gerado automaticamente pelo sistema de cadastro da viagem.", { align: "center" })
@@ -181,7 +192,7 @@ app.post("/enviar", upload.any(), async (req, res) => {
         contentType: "application/pdf"
       },
       ...req.files.map((f) => ({
-        filename: nomeAnexoSeguro(f),
+        filename: nomeArquivoAmigavel(f),
         content: f.buffer,
         contentType: f.mimetype
       }))

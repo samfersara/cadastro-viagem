@@ -65,10 +65,6 @@
       background:#94a3b8;
     }
 
-    .hidden{
-      display:none;
-    }
-
     #msg{
       display:none;
       background:#dcfce7;
@@ -85,6 +81,13 @@
       font-weight:600;
       margin-top:6px;
       color:#334155;
+    }
+
+    .hint{
+      font-size:12px;
+      color:#64748b;
+      margin-top:-6px;
+      margin-bottom:12px;
     }
 
     @media (max-width:700px){
@@ -159,25 +162,28 @@
       `;
     }
 
-    function blocoUploads(prefix, titulo){
+    function blocoUploads(prefix, titulo, incluirTermo = false){
       return `
         <div class="box">
           <h3>${titulo}</h3>
 
-          <label class="label">RG</label>
-          <input type="file" name="${prefix}_rgFile" accept="image/*,.pdf" capture="environment" required>
-
-          <label class="label">CPF</label>
-          <input type="file" name="${prefix}_cpfFile" accept="image/*,.pdf" capture="environment" required>
+          <label class="label">Documento RG/CPF</label>
+          <input type="file" name="${prefix}_rgCpfFile" accept="image/*,.pdf" capture="environment" required>
 
           <label class="label">Carteira de vacinação</label>
           <input type="file" name="${prefix}_vacina" accept="image/*,.pdf" capture="environment" required>
+
+          ${incluirTermo ? `
+            <label class="label">Termo de autorização</label>
+            <input type="file" name="${prefix}_termoAutorizacao" accept="image/*,.pdf" capture="environment" required>
+            <div class="hint">Envie foto ou PDF do termo assinado.</div>
+          ` : ""}
         </div>
       `;
     }
 
     function renderUploads(){
-      let html = blocoUploads("viajante", "Uploads do viajante");
+      let html = blocoUploads("viajante", "Uploads do viajante", true);
 
       if (temConjuge.value === "Sim") {
         html += blocoUploads("conjuge", "Uploads do cônjuge");
@@ -224,7 +230,7 @@
       form.reset();
       conjugeArea.innerHTML = "";
       filhosArea.innerHTML = "";
-      uploadsArea.innerHTML = blocoUploads("viajante", "Uploads do viajante");
+      uploadsArea.innerHTML = blocoUploads("viajante", "Uploads do viajante", true);
     }
 
     function validarFormulario(){
