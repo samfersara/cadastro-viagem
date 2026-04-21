@@ -95,12 +95,40 @@
         padding:20px;
       }
     }
+
+    .termo-box{
+  background:linear-gradient(135deg,#1e3a8a,#2563eb);
+  color:white;
+  padding:18px;
+  border-radius:10px;
+  margin-bottom:20px;
+  box-shadow:0 8px 25px rgba(37,99,235,0.3);
+}
+
+.termo-content{
+  display: block;
+}
   </style>
 </head>
 <body>
 
   <div class="card">
     <h1>Ficha Oficial da Viagem</h1>
+
+    <div class="termo-box">
+  <div class="termo-content">
+    <div>
+      <strong>⚠️ Termo de Autorização Obrigatório</strong>
+      <div class="termo-desc">
+        Baixe o termo, preencha, assine e envie no final do cadastro.
+      </div>
+    </div>
+
+    <a href="/docs/termo_autorizacao.docx" download class="btn-termo">
+      📄 Baixar Termo
+    </a>
+  </div>
+</div>
 
     <div id="msg"></div>
 
